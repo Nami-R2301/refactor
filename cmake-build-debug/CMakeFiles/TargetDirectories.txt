@@ -1,0 +1,3 @@
+/home/nami/Documents/refactor/cmake-build-debug/CMakeFiles/refactor.dir
+/home/nami/Documents/refactor/cmake-build-debug/CMakeFiles/edit_cache.dir
+/home/nami/Documents/refactor/cmake-build-debug/CMakeFiles/rebuild_cache.dir
