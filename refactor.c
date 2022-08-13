@@ -1,6 +1,3 @@
-#pragma clang diagnostic push
-#pragma ide diagnostic ignored "misc-no-recursion"
-
 #include <stdio.h>
 #include <string.h>
 #include <errno.h>
@@ -180,7 +177,7 @@ file_t find_in_file(args_t args)
     free(buffer);
     return (file_t) {R_SOURCE_EMPTY, "ERROR: FILE EMPTY!\n"};
   }
-  if (!strcasecmp(buffer, args.needle))
+  if (!strstr(buffer, args.needle))
   {
     fclose(file);
     free(buffer);
@@ -259,14 +256,16 @@ file_t replace_in_dir(args_t args)
   while ((d = readdir(dir)))
   {
     result = (file_t) {R_SUCCESS, NULL};
-    char buffer[256];
-    snprintf(buffer, 256, "%s/%s", args.filename, d->d_name);
+    char buffer[strlen(args.filename) + strlen(d->d_name) + 2];
+    snprintf(buffer, strlen(args.filename) + strlen(d->d_name) + 2, "%s/%s", args.filename, d->d_name);
     struct stat stat_p;
     stat(buffer, &stat_p);
     if (S_ISDIR(stat_p.st_mode) && args.r_option && strcmp(d->d_name, "..") != 0 &&
-        strcmp(d->d_name, ".") != 0) return replace_in_dir(args);
+        strcmp(d->d_name, ".") != 0)
+      return replace_in_dir(args);
     if (!S_ISDIR(stat_p.st_mode) && strcmp(d->d_name, "..") != 0 && strcmp(d->d_name, ".") != 0)
-      result = find_in_file((args_t) {args.i_option, args.d_option, args.r_option, buffer, args.needle, args.replacement});
+      result = find_in_file(
+          (args_t) {args.i_option, args.d_option, args.r_option, buffer, args.needle, args.replacement});
     // If error occurred.
     if (errno || result.status_code)
     {
@@ -298,5 +297,3 @@ int main(int argc, char **argv)
   if (result.status_code) fprintf(stderr, "%s", result.error_msg);
   return (int) result.status_code;
 }
-
-#pragma clang diagnostic pop
