@@ -2,7 +2,15 @@
 
 ### Made by Nami Reghbati
 
-### HOW TO USE
+### SETUP
+
+```
+$ make
+$ refactor [OPTIONS] [SOURCE] [FIND] [REPLACEMENT]
+Enjoy!
+```
+
+### MAN
 
 ```
 NAME
