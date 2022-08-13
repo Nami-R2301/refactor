@@ -13,12 +13,41 @@
 #define R_SUCCESS 0
 #define R_INTERNAL_ERROR 1
 #define R_ARGS_ERROR 2
-#define R_FILE_NOT_FOUND 3
-#define R_FILE_EMPTY 4
-#define R_STR_NOT_FOUND 5
-#define R_REPLACE_ERROR 6
-#define R_ERROR_DIR 7
-#define R_ERROR_FILE_TYPE 8
+#define R_SOURCE_NOT_FOUND 3
+#define R_SOURCE_EMPTY 4
+#define R_SOURCE_TYPE_ERROR 5
+#define R_SUBSTR_NOT_FOUND 6
+
+const char *help_msg = "\n NAME\n\trefactor - refactor strings in files and folders\n\n"
+                       " SYNOPSIS\n\trefactor [OPTION]... [-i|-r|-d] [SOURCE] [FIND] [REPLACEMENT]\n\t"
+                       "refactor [OPTION]... [-i]|[-r]|[-d] [SOURCE] [FIND] [REPLACEMENT]\n\t"
+                       "refactor [OPTION]... [-h]\n\n"
+                       " DESCRIPTION\n\tFind and replace all matching substrings in 'SOURCE' where 'FIND' is the"
+                       " substring to search for\n\tand 'REPLACEMENT' being the string to replace it with.\n\n"
+                       " OPTIONS\n\tDefault usage without any options will result in a search of the substring"
+                       "in the file provided as\n\t\tinput.\n\n\tEXAMPLE (1):\n\n\t\t$ refactor test.txt original changed"
+                       "\n\n\t\tTranslates to : Find and replace all occurrences of the word 'original' in the"
+                       " file 'test\n\t\t.txt' with the word 'changed'.\n\n\tEXAMPLE (2):\n\n\t\t$ refactor -ird"
+                       " /home/$USER/Test/ ERROR SUCCESS\n\n\t\tTranslates to : Find and replace all occurrences of "
+                       "the word 'ERROR' with the word 'SUCCE\n\t\tSS' in every file that '/home/$USER/Test/' contains."
+                       "\n\n\t-h, --help\n\t\tShow help for the command"
+                       "'s usage and exit.\n\n\t-i, --case-insensitive\n\t\tIgnore case of characters in the given"
+                       " 'FIND' string when matching.\n\n\t-r, --recursive\n\t\tSearch recursively all subfolders and "
+                       "replace all occurrences in files that match 'FIND'\n\t\twith 'REPLACEMENT'. Option '-d' MUST be declared as well!"
+                       "\n\n\t-d, --directory\n\n\t\tParse all files in 'SOURCE' directory and replace all "
+                       "occurrences that match 'FIND' with\n\t\t'REPLACEMENT'.\n\t\tIf the directory provided contains subdirectories"
+                       ", '-d' will IGNORE them UNLESS '-r' is\n\t\tdeclared as well.\n\n RETURN VALUE\n\tUpon successful return, "
+                       "the program will return 0.\n\tIf an error has occurred during the refactoring process, the program"
+                       " will return a unique ERROR\n\tcode alongside an error message passed in stderr.\n\n\tSee the EXIT STATUS section"
+                       " to view all possible ERROR codes.\n\n EXIT STATUS\n\t0:\tProgram executed successfully.\n\t"
+                       "1:\tAn internal error has occurred with the c libraries used.\n\t2:\tInvalid usage of command"
+                       ", command options are most likely not used properly.\n\t3:\tFile or folder not found.\n\t"
+                       "4:\tFile or folder empty.\n\t5:\tSource is neither a file or folder.\n\t6:\tSubstring"
+                       " [FIND] did not match anything.\n\n CONFORMING TO\n\tC99, C11, C17, POSIX.1-2001, POSIX.1-2008\n\n"
+                       " AUTHOR\n\tWritten by Nami Reghbati.\n\n COPYRIGHT\n\tCopyright © 2020 Free Software Foundation,"
+                       " Inc. License  GPLv3+:  GNU  GPL  version  3  or  later\n\t<https://gnu.org/licenses/gpl.html>.\n"
+                       "\tThis is free software: you are free to change and redistribute it.  There is NO WARRANTY, to the"
+                       "\n\textent permitted by law.\n\n";
 
 typedef struct args_s
 {
@@ -45,7 +74,7 @@ file_t replace_in_file(args_t args, char *buffer_file);
 
 args_t read_cmd(int argc, char **argv)
 {
-  if (argc > 8)
+  if (argc < 2 || argc > 8)
   {
     fprintf(stderr, "ERROR: INVALID COMMAND ARGUMENTS PROVIDED!\t"
                     " RE_RUN USING -h OR --help TO VIEW POSSIBLE ARGUMENTS.\tEXITING...\n");
@@ -95,7 +124,7 @@ args_t read_cmd(int argc, char **argv)
           }
           case 'h':
           {
-            fprintf(stdout, "USAGE : [OPTIONS : -h|-r|-d] [FILE] [FIND_STR] [REPLACEMENT_STR]\n");
+            fprintf(stdout, "%s", help_msg);
             exit(R_SUCCESS);
           }
           default:
@@ -106,9 +135,16 @@ args_t read_cmd(int argc, char **argv)
           }
         }
       }
-    } else if (!opt.filename) opt.filename = argv[i];
+    }
+    else if (!opt.filename) opt.filename = argv[i];
     else if (!opt.needle) opt.needle = argv[i];
     else if (!opt.replacement) opt.replacement = argv[i];
+  }
+  if (opt.r_option && !opt.d_option)  // Recursive without directory search.
+  {
+    fprintf(stderr, "ERROR: INVALID COMMAND ARGUMENTS PROVIDED!\n\tOPTION 'r' PROVIDED WITHOUT 'd'!\n"
+                    "RE_RUN USING -h OR --help TO VIEW POSSIBLE ARGUMENTS.\tEXITING...\n");
+    exit(R_ARGS_ERROR);
   }
   return opt;
 }
@@ -118,12 +154,12 @@ file_t check_input(args_t args)
   struct stat stat_p;
   stat(args.filename, &stat_p);
   if (!S_ISREG(stat_p.st_mode) && !S_ISDIR(stat_p.st_mode))
-    return (file_t) {R_ERROR_FILE_TYPE, "ERROR: INVALID FILE TYPE!\t"
-                                        "EXITING...\n"};
+    return (file_t) {R_SOURCE_TYPE_ERROR, "ERROR: INVALID FILE TYPE!\t"
+                                          "EXITING...\n"};
   FILE *file = fopen(args.filename, "r");
   if (!file)
-    return (file_t) {R_FILE_NOT_FOUND, "ERROR: COULD NOT OPEN FILE!"
-                                       " CHECK SPELLING AND FILE RIGHTS.\tEXITING...\n"};
+    return (file_t) {R_SOURCE_NOT_FOUND, "ERROR: COULD NOT OPEN FILE!"
+                                         " CHECK SPELLING AND FILE RIGHTS.\tEXITING...\n"};
   fclose(file);
   return (file_t) {R_SUCCESS, NULL};
 }
@@ -133,7 +169,7 @@ file_t find_in_file(args_t args)
   if (!strcmp(args.needle, args.replacement)) return (file_t) {R_SUCCESS, NULL};
   FILE *file = fopen(args.filename, "r");
   if (!file)
-    return (file_t) {R_FILE_NOT_FOUND, "ERROR: COULD NOT OPEN FILE! CHECK SPELLING AND FILE RIGHTS...\n"};
+    return (file_t) {R_SOURCE_NOT_FOUND, "ERROR: COULD NOT OPEN FILE! CHECK SPELLING AND FILE RIGHTS...\n"};
   char *buffer = (char *) calloc(1, FILENAME_MAX * 4000);  // 16 MBs.
   fread(buffer, FILENAME_MAX * 4000, 1, file);
 
@@ -141,27 +177,27 @@ file_t find_in_file(args_t args)
   {
     fclose(file);
     free(buffer);
-    return (file_t) {R_FILE_EMPTY, "ERROR: FILE EMPTY!\n"};
+    return (file_t) {R_SOURCE_EMPTY, "ERROR: FILE EMPTY!\n"};
   }
   if (!strcasecmp(buffer, args.needle))
   {
     fclose(file);
     free(buffer);
-    return (file_t) {R_STR_NOT_FOUND, "ERROR: SUBSTRING NOT FOUND IN FILE!\n"};
+    return (file_t) {R_SUBSTR_NOT_FOUND, "ERROR: SUBSTRING NOT FOUND IN FILE!\n"};
   }
   file_t result = replace_in_file(args, buffer);
   if (result.status_code)
   {
     fclose(file);
     free(buffer);
-    return (file_t) {R_REPLACE_ERROR, "ERROR: COULD NOT REFACTOR FILE!\n"};
+    return result;
   }
   file = fopen(args.filename, "w");  // Reopen file and erase its contents.
   if (!file)
   {
     fclose(file);
     free(buffer);
-    return (file_t) {R_FILE_NOT_FOUND, "ERROR: COULD NOT OPEN FILE! CHECK SPELLING AND FILE RIGHTS...\n"};
+    return (file_t) {R_SOURCE_NOT_FOUND, "ERROR: COULD NOT OPEN FILE! CHECK SPELLING AND FILE RIGHTS...\n"};
   }
   fwrite(buffer, strlen(buffer), 1, file);
   fclose(file);
@@ -215,8 +251,9 @@ file_t replace_in_dir(args_t args)
                                                      " THE -d | --directory ARGUMENT!\tEXITING...\n"};
   struct dirent *d;  // Directory entries.
   DIR *dir = opendir(args.filename);
-  if (!dir) return (file_t) {R_ERROR_DIR, "ERROR: UNABLE TO READ DIRECTORY!"
-                                          " CHECK SPELLING AND FILE RIGHTS...\n"};
+  if (!dir)
+    return (file_t) {R_SOURCE_NOT_FOUND, "ERROR: UNABLE TO READ DIRECTORY!"
+                                         " CHECK SPELLING AND FILE RIGHTS...\n"};
   file_t result;
   while ((d = readdir(dir)))
   {
