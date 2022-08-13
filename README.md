@@ -4,21 +4,22 @@
 
 ### HOW TO USE
 
-```NAME
-refactor - refactor strings in files and folders
+```
+NAME
+    refactor - refactor strings in files and folders
 
 SYNOPSIS
-refactor [OPTION]... [-i|-r|-d] [SOURCE] [FIND] [REPLACEMENT]
-refactor [OPTION]... [-i]|[-r]|[-d] [SOURCE] [FIND] [REPLACEMENT]
-refactor [OPTION]... [-h]
+    refactor [OPTION]... [-i|-r|-d] [SOURCE] [FIND] [REPLACEMENT]
+    refactor [OPTION]... [-i]|[-r]|[-d] [SOURCE] [FIND] [REPLACEMENT]
+    refactor [OPTION]... [-h]
 
 DESCRIPTION
-Find and replace all matching substrings in 'SOURCE' where 'FIND' is the substring to search for
-and 'REPLACEMENT' being the string to replace it with.
+    Find and replace all matching substrings in [SOURCE] where [FIND] is the substring to search for
+    and [REPLACEMENT] being the string to replace it with.
 
 OPTIONS
-Default usage without any options will result in a search of the substringin the file provided as
-input.
+    Default usage without any options will result in a search of the substringin the file provided as
+    input.
 
 	EXAMPLE (1):
 
@@ -38,7 +39,8 @@ input.
 		Show help for the command's usage and exit.
 
 	-i, --case-insensitive
-		Ignore case of characters in the given 'FIND' string when matching.
+		Ignore case of characters in the given 'FIND' string when matching. By default, the comma
+		nd will search for EXACT matches.
 
 	-r, --recursive
 		Search recursively all subfolders and replace all occurrences in files that match 'FIND'
@@ -52,30 +54,30 @@ input.
 		declared as well.
 
 RETURN VALUE
-Upon successful return, the program will return 0.
-If an error has occurred during the refactoring process, the program will return a unique ERROR
-code alongside an error message passed in stderr.
+    Upon successful return, the program will return 0.
+    If an error has occurred during the refactoring process, the program will return a unique ERROR
+    code alongside an error message passed in stderr.
 
 	See the EXIT STATUS section to view all possible ERROR codes.
 
 EXIT STATUS
-0:	Program executed successfully.
-1:	An internal error has occurred with the c libraries used.
-2:	Invalid usage of command, command options are most likely not used properly.
-3:	File or folder not found.
-4:	File or folder empty.
-5:	Source is neither a file or folder.
-6:	Substring [FIND] did not match anything.
+    0:	Program executed successfully.
+    1:	An internal error has occurred with the c libraries used.
+    2:	Invalid usage of command, command options are most likely not used properly.
+    3:	File or folder not found.
+    4:	File or folder empty.
+    5:	Source is neither a file or folder.
+    6:	Substring [FIND] did not match anything.
 
 CONFORMING TO
-C99, C11, C17, POSIX.1-2001, POSIX.1-2008
+    C99, C11, C17, POSIX.1-2001, POSIX.1-2008
 
 AUTHOR
-Written by Nami Reghbati.
+    Written by Nami Reghbati.
 
 COPYRIGHT
-Copyright © 2020 Free Software Foundation, Inc. License  GPLv3+:  GNU  GPL  version  3  or  later
-<https://gnu.org/licenses/gpl.html>.
-This is free software: you are free to change and redistribute it.  There is NO WARRANTY, to the
-extent permitted by law.
+    Copyright © 2020 Free Software Foundation, Inc. License  GPLv3+:  GNU  GPL  version  3  or  later
+    <https://gnu.org/licenses/gpl.html>.
+    This is free software: you are free to change and redistribute it.  There is NO WARRANTY, to the
+    extent permitted by law.
 ```
