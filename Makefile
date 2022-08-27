@@ -1,9 +1,10 @@
-CFLAGS = -Wall -pedantic -std=c99
+CFLAGS = -Wall -Wvla -std=c++11
+LOGS_PATH = Logs/
 
 all: compile
 
-compile: refactor.c
-	gcc $(CFLAGS) refactor.c -o refactor
+compile: refactor.cpp
+	g++ $(CFLAGS) refactor.cpp $(LOGS_PATH)logger.cpp $(LOGS_PATH)time.cpp -o refactor
 	chmod +x refactor
 	sudo mv refactor /usr/bin
 
