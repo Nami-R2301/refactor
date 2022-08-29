@@ -5,7 +5,7 @@
 #pragma once
 
 // Game_time
-#include "time.h"
+#include "time.h"  //NOLINT
 
 // strlen, std::string and snprintf.
 #include <cstdlib>
@@ -37,6 +37,6 @@ namespace Nami
   void alert(int info_type = LOG_INFO, const char *format = "\n", ...);
   void save_to_file(const char *info);
   void print_logs();
-  void reset_logs();
+//  void reset_logs();
   void close_file();
 }

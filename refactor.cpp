@@ -1,17 +1,15 @@
 #include <cstdio>
 #include <cstring>
-#include <cerrno>
 #include <dirent.h>
 #include <sys/stat.h>
 #include <cstdlib>
 #include <cctype>
-#include "Logs/logger.h"
+#include "logger.h"
 
 #define R_SUCCESS 0
 #define R_INTERNAL_ERROR 1
 #define R_ARGS_ERROR 2
 #define R_SOURCE_NOT_FOUND 3
-#define R_SOURCE_EMPTY 4
 #define R_SOURCE_TYPE_ERROR 5
 #define R_SUBSTR_NOT_FOUND 6
 
@@ -47,38 +45,30 @@ const char *help_msg = "\n NAME\n\trefactor - refactor strings in files and fold
                        "\tThis is free software: you are free to change and redistribute it.  There is NO WARRANTY, to the"
                        "\n\textent permitted by law.\n\n";
 
-typedef struct args_s
+typedef struct refactor_s
 {
   bool i_option;  // Case-insensitive.
   bool d_option;  // Refactor all specified directory files.
   bool r_option;  // Follow subdirectories recursively.
-  const char *filename;
+  char *filename;
   char *needle;
   const char *replacement;
-} args_t;
+} refactor_t;
 
-typedef struct file_s
-{
-  unsigned int status_code;
-  const char *error_msg;
-} file_t;
-
-args_t read_cmd(int argc, char **argv);
-file_t check_input(args_t args);
-file_t find_in_file(args_t args);
+refactor_t read_cmd(int argc, char **argv);
+int check_input(refactor_t args);
 void to_uppercase(char *buffer);
-file_t replace_in_dir(args_t args);
-file_t replace_in_file(args_t args, char *buffer_file);
+void replace_in_dir(refactor_t args);
+void replace_in_file(refactor_t args);
+void error_handling(const char *msg, int code);
 
-args_t read_cmd(int argc, char **argv)
+refactor_t read_cmd(int argc, char **argv)
 {
   if (argc < 2 || argc > 8)
-  {
-    Nami::alert(LOG_ERROR, "INVALID COMMAND ARGUMENTS PROVIDED!\t"
-                           " RE_RUN USING -h OR --help TO VIEW POSSIBLE ARGUMENTS.\tEXITING...\n");
-    exit(R_ARGS_ERROR);
-  }
-  args_t opt = {false, false, false, nullptr, nullptr, nullptr};
+    error_handling("INVALID COMMAND ARGUMENTS PROVIDED!\t RE_RUN USING -h OR --help TO VIEW POSSIBLE ARGUMENTS.\t"
+                   "EXITING...\n", R_ARGS_ERROR);
+
+  refactor_t opt = {false, false, false, nullptr, nullptr, nullptr};
   for (int i = 1; i < argc; i++)
   {
     if (argv[i] && argv[i][0] == '-')
@@ -99,10 +89,17 @@ args_t read_cmd(int argc, char **argv)
           {
             opt.r_option = true;
             break;
+          } else if (strcmp(argv[i], "--log") == 0)
+          {
+            Nami::print_logs();
+            exit(R_SUCCESS);
           }
         }
         switch (argv[i][j])  // -i|d|r|h
         {
+          case 'l':
+            Nami::print_logs();
+            exit(R_SUCCESS);
           case 'i':
           {
             opt.i_option = true;
@@ -120,15 +117,13 @@ args_t read_cmd(int argc, char **argv)
           }
           case 'h':
           {
-            Nami::alert(LOG_INFO, "%s", help_msg);
+            printf("%s", help_msg);
             exit(R_SUCCESS);
           }
           default:
-          {
-            Nami::alert(LOG_ERROR, "INVALID COMMAND ARGUMENTS PROVIDED!\t"
-                                   " RE_RUN USING -h OR --help TO VIEW POSSIBLE ARGUMENTS.\tEXITING...\n");
-            exit(R_ARGS_ERROR);
-          }
+            error_handling(
+                "INVALID COMMAND ARGUMENTS PROVIDED!\t RE_RUN USING -h OR --help TO VIEW POSSIBLE ARGUMENTS.\t"
+                "EXITING...\n", R_ARGS_ERROR);
         }
       }
     } else if (!opt.filename) opt.filename = argv[i];
@@ -144,70 +139,52 @@ args_t read_cmd(int argc, char **argv)
   return opt;
 }
 
-file_t check_input(args_t args)
+int check_input(refactor_t args)
 {
   struct stat stat_p{};
   stat(args.filename, &stat_p);
   if (!S_ISREG(stat_p.st_mode) && !S_ISDIR(stat_p.st_mode))
-    return (file_t) {R_SOURCE_TYPE_ERROR, "ERROR: INVALID FILE TYPE!\t EXITING...\n"};
-  FILE *file = fopen(args.filename, "r");
-  if (!file)
-    return (file_t) {R_SOURCE_NOT_FOUND, "ERROR: COULD NOT OPEN FILE!"
-                                         " CHECK SPELLING AND FILE RIGHTS.\tEXITING...\n"};
-  fclose(file);
-  return (file_t) {R_SUCCESS, nullptr};
+    error_handling("Invalid file type!\t Exiting ...", R_SOURCE_TYPE_ERROR);
+  if (!strcmp(args.needle, args.replacement)) return R_SUCCESS;
+  if (!S_ISDIR(stat_p.st_mode))
+  {
+    FILE *file = fopen(args.filename, "r");
+    if (!file)
+      error_handling("Could not open file! Check file path spelling and rights ...", R_SOURCE_TYPE_ERROR);
+    char *buffer = (char *) calloc(1, FILENAME_MAX * 4000);  // 16 MBs.
+    fread(buffer, FILENAME_MAX * 4000, 1, file);
+
+    if (ferror(file) || !strstr(buffer, args.needle))
+    {
+      fclose(file);
+      free(buffer);
+      Nami::alert(LOG_WARN, "Substring not found in file!");
+      return R_SUBSTR_NOT_FOUND;
+    }
+    fclose(file);
+    free(buffer);
+  }
+  return R_SUCCESS;
 }
 
-file_t find_in_file(args_t args)
-{
-  if (!strcmp(args.needle, args.replacement)) return (file_t) {R_SUCCESS, nullptr};
-  FILE *file = fopen(args.filename, "r");
-  if (!file)
-    return (file_t) {R_SOURCE_NOT_FOUND, "ERROR: COULD NOT OPEN FILE! CHECK SPELLING AND FILE RIGHTS...\n"};
-  char *buffer = (char *) calloc(1, FILENAME_MAX * 4000);  // 16 MBs.
-  fread(buffer, FILENAME_MAX * 4000, 1, file);
-
-  if (ferror(file))
-  {
-    fclose(file);
-    free(buffer);
-    return (file_t) {R_SOURCE_EMPTY, "FILE EMPTY!"};
-  }
-  if (!strstr(buffer, args.needle))
-  {
-    fclose(file);
-    free(buffer);
-    return (file_t) {R_SUBSTR_NOT_FOUND, "SUBSTRING NOT FOUND IN FILE!"};
-  }
-  file_t result = replace_in_file(args, buffer);
-  if (result.status_code)
-  {
-    fclose(file);
-    free(buffer);
-    return result;
-  }
-  file = fopen(args.filename, "w");  // Reopen file and erase its contents.
-  if (!file)
-  {
-    fclose(file);
-    free(buffer);
-    return (file_t) {R_SOURCE_NOT_FOUND, "COULD NOT OPEN FILE! CHECK SPELLING AND FILE RIGHTS..."};
-  }
-  fwrite(buffer, strlen(buffer), 1, file);
-  fclose(file);
-  free(buffer);
-  return (file_t) {R_SUCCESS, nullptr};
-}
-
-file_t replace_in_file(args_t args, char *buffer_file)
+void replace_in_file(refactor_t args)
 {
   unsigned long index = 0;
   char *cursor_pos;
+  FILE *file = fopen(args.filename, "r+");
+  if (!file)
+    return error_handling("Could not open file! Check file path spelling and rights ...", R_SOURCE_TYPE_ERROR);
   char *temp = (char *) calloc(1, FILENAME_MAX * 4000);
-  if (!strncpy(temp, buffer_file, strlen(buffer_file)))
-    return (file_t) {R_INTERNAL_ERROR,
-                     "[replace_in_file][strncpy] : Could not"
-                     "copy file contents!"};
+  char *buffer = (char *) calloc(1, FILENAME_MAX * 4000);  // 16 MBs.
+  fread(buffer, FILENAME_MAX * 4000, 1, file);
+
+  if (!strncpy(temp, buffer, strlen(buffer)))
+  {
+    free(temp);
+    free(buffer);
+    fclose(file);
+    return error_handling("[replace_in_file][strncpy] : Could not copy file contents", R_INTERNAL_ERROR);
+  }
   if (args.i_option)  // Capitalize both needle and buffer to force matching.
   {
     to_uppercase(args.needle);
@@ -216,60 +193,88 @@ file_t replace_in_file(args_t args, char *buffer_file)
   while ((cursor_pos = strstr(temp + index, args.needle)))  // Parse the buffer and check for matches.
   {
     index = cursor_pos - temp;  // Index of current found word
-    buffer_file[index] = '\0';  // Terminate str after word found index.
-    if (!strncat(buffer_file, args.replacement, strlen(buffer_file) + strlen(args.replacement)))
-      return (file_t) {R_INTERNAL_ERROR,
-                       "[replace_in_file][strncat] : Could not concatenate file contents!"};  // Concatenate str with new word.
-    if (!strncat(buffer_file, temp + index + strlen(args.needle),
-                 strlen(buffer_file) + strlen(temp)))
-      return (file_t) {R_INTERNAL_ERROR,
-                       "[replace_in_file][strncat] : Could not concatenate file contents!"};  // Concatenate str with remaining words after.
+    buffer[index] = '\0';  // Terminate str after word found index.
+
+    // Concatenate str with new word.
+    if (!strncat(buffer, args.replacement, strlen(buffer) + strlen(args.replacement)))
+    {
+      free(buffer);
+      fclose(file);
+      return error_handling("[strncat] : Could not copy file contents", R_INTERNAL_ERROR);
+    }
+    // Concatenate str with remaining words after.
+    if (!strncat(buffer, temp + index + strlen(args.needle),
+                 strlen(buffer) + strlen(temp)))
+    {
+      free(buffer);
+      fclose(file);
+      return error_handling("[strncat] : Could not copy file contents", R_INTERNAL_ERROR);
+    }
     if (args.i_option)
     {
-      if (!strncpy(temp, buffer_file, strlen(buffer_file)))
-        return (file_t) {R_INTERNAL_ERROR,
-                         "[replace_in_file][strncpy] : Could not copy file contents!"};  // Update buffer length for next cursor pos.
+      // Update buffer length for next cursor pos.
+      if (!strncpy(temp, buffer, strlen(buffer)))
+      {
+        free(buffer);
+        fclose(file);
+        return error_handling("[strncpy] : Could not copy file contents", R_INTERNAL_ERROR);
+      }
       to_uppercase(temp + index + strlen(args.replacement));  // Uppercase remaining buffer str.
     }
-    if (!strncpy(temp, buffer_file, strlen(buffer_file)))
-      return (file_t) {R_INTERNAL_ERROR, "[replace_in_file][strncpy] : Could not copy file contents!"};
+    if (!strncpy(temp, buffer, strlen(buffer)))
+    {
+      free(buffer);
+      return error_handling("[strncpy] : Could not copy file contents", R_INTERNAL_ERROR);
+    }
     index += strlen(args.replacement);
   }
   free(temp);
-  return (file_t) {R_SUCCESS, nullptr};
+  fwrite(buffer, strlen(buffer), 1, file);
+  free(buffer);
+  fclose(file);
 }
 
 // Recursive function to check each directory file containing substring to refactor.
-file_t replace_in_dir(args_t args)
+void replace_in_dir(refactor_t args)
 {
   if (!args.d_option)
-    return (file_t) {R_ARGS_ERROR, "DIRECTORY GIVEN AS FILE WITHOUT THE -d | --directory ARGUMENT!\tEXITING..."};
+    return error_handling("Directory passed in without -d | --directory option", R_ARGS_ERROR);
   struct dirent *d;  // Directory entries.
+
   DIR *dir = opendir(args.filename);
   if (!dir)
-    return (file_t) {R_SOURCE_NOT_FOUND, "UNABLE TO READ DIRECTORY! CHECK SPELLING AND FILE RIGHTS..."};
-  file_t result;
+    return error_handling("Unable to read directory %s! Check directory path and directory rights", R_SOURCE_NOT_FOUND);
+
   while ((d = readdir(dir)))
   {
-    result = (file_t) {R_SUCCESS, nullptr};
-    char buffer[strlen(args.filename) + strlen(d->d_name) + 2];
-    snprintf(buffer, strlen(args.filename) + strlen(d->d_name) + 2, "%s/%s", args.filename, d->d_name);
-    Nami::alert(LOG_INFO, "Checking file ( %s )", buffer);
+    char *buffer = (char *) calloc(1, FILENAME_MAX);
+    if (!buffer)
+    {
+      free(buffer);
+      return error_handling("[Calloc] : Could not allocate dynamic memory", ERROR_HEAP_ALLOC);
+    }
+    // If filename contains a forward slash, remove it for recursive concatenation of next children down the path.
+    if (args.filename[strlen(args.filename) - 1] == '/') args.filename[strlen(args.filename) - 1] = '\0';
+    if (snprintf(buffer, FILENAME_MAX, "%s/%s", args.filename, d->d_name) < 0)
+    {
+      free(buffer);
+      return error_handling("[snprintf] : Could not concatenate strings", ERROR_SNPRINTF);
+    }
+
+    Nami::alert(LOG_INFO, "Refactoring %s ...", buffer);
     struct stat stat_p{};
     stat(buffer, &stat_p);
+    refactor_t current_inode = {args.i_option, args.d_option, args.r_option, buffer,
+                                args.needle, args.replacement};
     if (S_ISDIR(stat_p.st_mode) && args.r_option && strcmp(d->d_name, "..") != 0 &&
         strcmp(d->d_name, ".") != 0)
-      result = replace_in_dir((args_t) {args.i_option, args.d_option, args.r_option, buffer,
-                                        args.needle, args.replacement});
-    if (!S_ISDIR(stat_p.st_mode) && strcmp(d->d_name, "..") != 0 && strcmp(d->d_name, ".") != 0)
-      result = find_in_file(
-          (args_t) {args.i_option, args.d_option, args.r_option, buffer, args.needle, args.replacement});
-    // If error occurred.
-    if (errno || result.status_code)
-      if (result.status_code != R_SUBSTR_NOT_FOUND) Nami::alert(LOG_ERROR, "[%s] %s", buffer, result.error_msg);
+      replace_in_dir(current_inode);
+    else if (strcmp(d->d_name, "..") != 0 && strcmp(d->d_name, ".") != 0) replace_in_file(current_inode);
+    if (strcmp(d->d_name, "..") != 0 && strcmp(d->d_name, ".") != 0)
+      Nami::alert(LOG_STATUS_DONE, "%s refactored successfully", buffer);
+    free(buffer);
   }
   closedir(dir);
-  return result;
 }
 
 void to_uppercase(char *buffer)
@@ -278,18 +283,19 @@ void to_uppercase(char *buffer)
   for (int i = 0; i < (int) strlen(buffer); ++i) buffer[i] = (char) toupper((unsigned char) buffer[i]);
 }
 
+void error_handling(const char *msg, int code)
+{
+  Nami::alert(LOG_ERROR, "%s at line %d!", msg, __LINE__);
+  exit(code);
+}
+
 int main(int argc, char **argv)
 {
-  args_t cmd_args = read_cmd(argc, argv);
-  file_t result = check_input(cmd_args);
-  if (result.status_code != R_SUCCESS)
-  {
-    Nami::alert(LOG_ERROR, "%s", result.error_msg);
-    return (int) result.status_code;
-  }
-  if (cmd_args.d_option) result = replace_in_dir(cmd_args);
-  if (!cmd_args.d_option) result = find_in_file(cmd_args);
-  if (result.status_code != R_SUCCESS && result.status_code != R_SUBSTR_NOT_FOUND)
-    Nami::alert(LOG_ERROR, "%s", result.error_msg);
-  return (int) result.status_code;
+  Nami::open_file();
+  refactor_t refactor_options = read_cmd(argc, argv);
+  int result = check_input(refactor_options);
+  if (!result && !refactor_options.d_option) replace_in_file(refactor_options);
+  else if (!result) replace_in_dir(refactor_options);
+  Nami::close_file();
+  return R_SUCCESS;
 }

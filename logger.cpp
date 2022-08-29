@@ -31,24 +31,23 @@ namespace Nami
       in.read(&contents[0], (long) contents.size());
       in.close();
       fflush(stdout);
-      printf("%s\n------------START OF LOGS--------------\n%s%s",
-             GREEN, contents.c_str(), RESET);
+      printf("%s\n------------START OF LOGS--------------\n%s%s", GREEN, contents.c_str(), RESET);
       printf("%s------------END OF LOGS--------------%s\n", GREEN, RESET);
     } else alert(LOG_WARN, "NO LOGS DOCUMENTED YET!\tTRY LAUNCHING THE PROGRAM AT LEAST ONCE...");
   }
 
-  void reset_logs()
-  {
-    open_file();
-    int result = 0;
-    if (file_ptr)
-      result = remove("log.txt");
-    fflush(stdout);
-    if (result == 0) alert(LOG_STATUS_DONE, "LOG FILE RESET!\tPLEASE RUN THE PROGRAM AGAIN TO VIEW LOGS...");
-    else
-      alert(LOG_ERROR, "%s[LOG ERROR] : CAN'T RESET LOG FILE!\tMAKE SURE YOU RAN THE PROGRAM AT "
-                       "LEAST ONCE...");
-  }
+//  void reset_logs()
+//  {
+//    open_file();
+//    int result = 0;
+//    if (file_ptr)
+//      result = remove("log.txt");
+//    fflush(stdout);
+//    if (result == 0) alert(LOG_STATUS_DONE, "LOG FILE RESET!\tPLEASE RUN THE PROGRAM AGAIN TO VIEW LOGS...");
+//    else
+//      alert(LOG_ERROR, "%s[LOG ERROR] : CAN'T RESET LOG FILE!\tMAKE SURE YOU RAN THE PROGRAM AT "
+//                       "LEAST ONCE...");
+//  }
 
   void save_to_file(const char *info)
   {
@@ -77,9 +76,8 @@ namespace Nami
     char *current_time = ctime(&time);  // Transform to const char*.
     current_time[strlen(current_time) - 1] = '\0';  // Remove newline.
 
-    unsigned int buffer_size = strlen(string) + strlen(current_time) + strlen(type) + 9;  // 9 extra format chars.
-    char buffer[buffer_size];
-    if (snprintf(buffer, buffer_size, "%s [%s] : %s", type, current_time, string) < 0)
+    char buffer[FILENAME_MAX];
+    if (snprintf(buffer, FILENAME_MAX, "%s [%s] : %s", type, current_time, string) < 0)
     {
       fprintf(stderr, "LOG_ERROR WHEN FORMATTING STRING (SNPRINTF)!\nEXITING...\n");
       exit(ERROR_SNPRINTF);
@@ -93,8 +91,7 @@ namespace Nami
   void close_file()
   {
     if (file_ptr && fclose(file_ptr))
-    {
       alert(LOG_WARN, "ERROR WHEN CLOSING FILE STREAM! LOG MAY BE CORRUPTED...");
-    } else if (!file_ptr) alert(LOG_WARN, "FILE STREAM WAS NEVER OPENED! NOT CLOSING IT...");
+    else if (!file_ptr) alert(LOG_WARN, "FILE STREAM WAS NEVER OPENED! NOT CLOSING IT...");
   }
 }
